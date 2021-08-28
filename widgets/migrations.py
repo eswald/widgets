@@ -1,4 +1,4 @@
-import time_math
+import widgets.database
 
 migrations = []
 
@@ -65,7 +65,7 @@ async def run_migrations(dbmanager):
                 await migration(db)
                 await db.execute(r"""
                     INSERT INTO migrations (name, migrated) VALUES (?, ?)
-                """, (name, str(time_math.now())))
+                """, (name, str(widgets.database.now())))
                 await db.commit()
         
         print("Migrations complete.")

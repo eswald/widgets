@@ -1,26 +1,18 @@
-import aiosqlite
 import click
 import tornado.ioloop
 import tornado.web
 
-import migrations
-
+import widgets.database
+import widgets.migrations
 
 class MainHandler(tornado.web.RequestHandler):
     def initialize(self, dbmanager):
         self.dbmanager = dbmanager
     
     async def get(self):
-        self.write(str([f.__name__ for f in migrations.migrations]))
-
-
-class ConnectionManager:
-    def __init__(self, database, loop):
-        self.dbfilename = database
-        self.loop = None
-    
-    def connect(self):
-        return aiosqlite.connect(self.dbfilename, loop=self.loop)
+        self.write({
+            'migrations': [f.__name__ for f in widgets.migrations.migrations],
+        })
 
 
 @click.command()
@@ -32,8 +24,8 @@ class ConnectionManager:
                               writable=True))
 def run(port: int, database: str):
     loop = tornado.ioloop.IOLoop.current()
-    dbmanager = ConnectionManager(database, loop)
-    loop.add_callback(migrations.run_migrations, dbmanager)
+    dbmanager = widgets.database.ConnectionManager(database, loop)
+    loop.add_callback(widgets.migrations.run_migrations, dbmanager)
     app = tornado.web.Application([
         (r"/", MainHandler, {'dbmanager': dbmanager}),
     ])
