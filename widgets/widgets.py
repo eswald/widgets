@@ -28,7 +28,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             widget["id"] = await encoder("widget", widget["id"])
         
         self.write({
-            'organization': self.organization_id,
+            'organization': self.organization_code,
             'widgets': widgets,
         })
     
@@ -90,7 +90,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         fields["id"] = await self.dbmanager.encode_id("widget", widget_id)
         
         self.write({
-            'organization': self.organization_id,
+            'organization': self.organization_code,
             'widget': fields,
         })
     
@@ -192,7 +192,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             current.update(changes)
         
         self.write({
-            'organization': self.organization_id,
+            'organization': self.organization_code,
             'widget': current,
         })
     
@@ -260,7 +260,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             return
         
         self.write({
-            'organization': self.organization_id,
+            'organization': self.organization_code,
             'widget': current,
         })
     
@@ -330,6 +330,6 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             return
         
         self.write({
-            'organization': self.organization_id,
+            'organization': self.organization_code,
             'widget': current,
         })

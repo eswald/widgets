@@ -10,6 +10,7 @@ class AuthorizedRequestHandler(tornado.web.RequestHandler):
     
     async def prepare(self):
         self.organization_id = None
+        self.organization_code = None
         auth = self.request.headers.get('Authorization')
         if auth and auth.startswith('Bearer '):
             token = auth.split(" ", 1)[1]
@@ -23,6 +24,11 @@ class AuthorizedRequestHandler(tornado.web.RequestHandler):
                 async with db.execute(query, (token,)) as cursor:
                     async for row in cursor:
                         self.organization_id = row[0]
+            if self.organization_id is not None:
+                self.organization_code = await self.dbmanager.encode_id(
+                    "organization",
+                    self.organization_id,
+                )
     
     def write_error(self, status_code, **kwargs):
         self.write({'error': 'Internal Error'})
@@ -35,7 +41,7 @@ class OrganizationHandler(AuthorizedRequestHandler):
             self.write({'error': 'Not Authorized'})
             return
         
-        fields = ["id", "name", "created", "updated"]
+        fields = ["name", "created", "updated"]
         
         organizations = []
         async with self.dbmanager.connect() as db:
@@ -47,6 +53,9 @@ class OrganizationHandler(AuthorizedRequestHandler):
             async with db.execute(query, (self.organization_id,)) as cursor:
                 async for row in cursor:
                     organizations.append(dict(zip(fields, row)))
+        
+        for organization in organizations:
+            organization['id'] = self.organization_code
         
         self.write({
             'organization': organizations,
@@ -87,7 +96,11 @@ class OrganizationHandler(AuthorizedRequestHandler):
             
             await db.commit()
         
+        organization_code = await self.dbmanager.encode_id(
+            "organization",
+            organization_id,
+        )
         self.write({
-            'organization_id': organization_id,
+            'organization': organization_code,
             'token': token,
         })
