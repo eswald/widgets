@@ -187,3 +187,65 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             'organization': self.organization_id,
             'widget': current,
         })
+    
+    async def delete(self):
+        if not self.organization_id:
+            self.set_status(401)
+            self.write({'error': 'Not Authorized'})
+            return
+        
+        try:
+            post = json.loads(self.request.body)
+            assert isinstance(post, dict)
+        except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        
+        errors = {}
+        
+        widget_id = post.get("id")
+        if not widget_id:
+            errors['widget_id'] = 'widget_id is required'
+        else:
+            # This could just go ahead with the delete and check for changes,
+            # but querying first is just a little easier in many systems.
+            current = None
+            async with self.dbmanager.connect() as db:
+                query = f"""
+                    SELECT id
+                    FROM widgets
+                    WHERE id = ? AND organization_id = ?
+                    LIMIT 1
+                """
+                params = (widget_id, self.organization_id)
+                async with db.execute(query, params) as cursor:
+                    async for row in cursor:
+                        current = row[0]
+            if current is None:
+                errors['widget_id'] = 'widget_id must be an existing widget id'
+        
+        if errors:
+            self.set_status(400)
+            self.write({'error': errors})
+            return
+        
+        query = f"""
+            DELETE FROM widgets
+            WHERE id = ? AND organization_id = ?
+        """
+        params = (widget_id, self.organization_id)
+        async with self.dbmanager.connect() as db:
+            cursor = await db.execute(query, params)
+            await db.commit()
+            changes = db.total_changes
+        
+        if not changes:
+            self.set_status(409)
+            self.write({'error': 'No changes made'})
+            return
+        
+        self.write({
+            'organization': self.organization_id,
+            'widget': current,
+        })
