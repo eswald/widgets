@@ -1,5 +1,3 @@
-import widgets.database
-
 migrations = []
 
 def migration(f):
@@ -18,12 +16,12 @@ async def create_organizations_table(db):
     """)
 
 @migration
-async def create_keys_table(db):
+async def create_tokens_table(db):
     await db.execute(r"""
-        CREATE TABLE keys (
+        CREATE TABLE tokens (
             id INTEGER NOT NULL PRIMARY KEY,
             organization_id INTEGER NOT NULL,
-            uuid TEXT NOT NULL,
+            token TEXT NOT NULL UNIQUE,
             created TEXT NOT NULL,
             updated TEXT NOT NULL
         )
@@ -65,7 +63,7 @@ async def run_migrations(dbmanager):
                 await migration(db)
                 await db.execute(r"""
                     INSERT INTO migrations (name, migrated) VALUES (?, ?)
-                """, (name, str(widgets.database.now())))
+                """, (name, str(dbmanager.now())))
                 await db.commit()
         
         print("Migrations complete.")

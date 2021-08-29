@@ -2,17 +2,10 @@ import click
 import tornado.ioloop
 import tornado.web
 
+import widgets.auth
 import widgets.database
 import widgets.migrations
-
-class MainHandler(tornado.web.RequestHandler):
-    def initialize(self, dbmanager):
-        self.dbmanager = dbmanager
-    
-    async def get(self):
-        self.write({
-            'migrations': [f.__name__ for f in widgets.migrations.migrations],
-        })
+import widgets.widgets
 
 
 @click.command()
@@ -26,8 +19,10 @@ def run(port: int, database: str):
     loop = tornado.ioloop.IOLoop.current()
     dbmanager = widgets.database.ConnectionManager(database, loop)
     loop.add_callback(widgets.migrations.run_migrations, dbmanager)
+    params = {'dbmanager': dbmanager}
     app = tornado.web.Application([
-        (r"/", MainHandler, {'dbmanager': dbmanager}),
+        (r"/", widgets.auth.OrganizationHandler, params),
+        (r"/widgets/", widgets.widgets.WidgetHandler, params),
     ])
     app.listen(8888)
     print("Listening...")
