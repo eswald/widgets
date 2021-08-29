@@ -250,3 +250,66 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             'organization': self.organization_id,
             'widget': current,
         })
+    
+    async def patch(self):
+        if not self.organization_id:
+            self.set_status(401)
+            self.write({'error': 'Not Authorized'})
+            return
+        
+        try:
+            post = json.loads(self.request.body)
+            assert isinstance(post, dict)
+        except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        
+        errors = {}
+        
+        widget_id = post.get("id")
+        if not widget_id:
+            errors['id'] = 'id is required'
+        else:
+            # This query specifically looks for deleted widgets to restore.
+            current = None
+            async with self.dbmanager.connect() as db:
+                query = f"""
+                    SELECT id
+                    FROM widgets
+                    WHERE id = ? AND organization_id = ?
+                    AND deleted IS NOT NULL
+                    LIMIT 1
+                """
+                params = (widget_id, self.organization_id)
+                async with db.execute(query, params) as cursor:
+                    async for row in cursor:
+                        current = row[0]
+            if current is None:
+                errors['id'] = 'id must be a deleted widget id'
+        
+        if errors:
+            self.set_status(400)
+            self.write({'error': errors})
+            return
+        
+        now = self.dbmanager.now()
+        query = f"""
+            UPDATE widgets SET deleted = NULL, updated = ?
+            WHERE id = ? AND organization_id = ? AND deleted IS NOT NULL
+        """
+        params = (now, widget_id, self.organization_id)
+        async with self.dbmanager.connect() as db:
+            cursor = await db.execute(query, params)
+            await db.commit()
+            changes = db.total_changes
+        
+        if not changes:
+            self.set_status(409)
+            self.write({'error': 'No changes made'})
+            return
+        
+        self.write({
+            'organization': self.organization_id,
+            'widget': current,
+        })
