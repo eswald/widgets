@@ -23,6 +23,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 async for row in cursor:
                     widgets.append(dict(zip(fields, row)))
         
+        encoder = self.dbmanager.encode_id
+        for widget in widgets:
+            widget["id"] = await encoder("widget", widget["id"])
+        
         self.write({
             'organization': self.organization_id,
             'widgets': widgets,
@@ -82,7 +86,8 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         
         widget_id = await self.dbmanager.insert_row("widgets",
             organization_id=self.organization_id, **fields)
-        fields["id"] = widget_id
+        
+        fields["id"] = await self.dbmanager.encode_id("widget", widget_id)
         
         self.write({
             'organization': self.organization_id,
@@ -106,13 +111,14 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         errors = {}
         changes = {}
         
-        widget_id = post.get("id")
-        if not widget_id:
+        widget_code = post.get("id")
+        if not widget_code:
             errors['id'] = 'id is required'
         else:
+            prefix, widget_id = await self.dbmanager.decode_id(widget_code)
             current = None
             async with self.dbmanager.connect() as db:
-                fields = ["id", "name", "parts", "description", "created"]
+                fields = ["name", "parts", "description", "created"]
                 query = f"""
                     SELECT {', '.join(fields)}
                     FROM widgets
@@ -123,8 +129,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
                         current = dict(zip(fields, row))
-            if current is None:
+            if current is None or prefix != "widget":
                 errors['id'] = 'id must be an existing widget id'
+            else:
+                current['id'] = widget_code
         
         if 'name' in post:
             name = post["name"]
@@ -204,16 +212,18 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         
         errors = {}
         
-        widget_id = post.get("id")
-        if not widget_id:
+        widget_code = post.get("id")
+        if not widget_code:
             errors['id'] = 'id is required'
         else:
             # This could just go ahead with the delete and check for changes,
             # but querying first is just a little easier in many systems.
+            prefix, widget_id = await self.dbmanager.decode_id(widget_code)
             current = None
             async with self.dbmanager.connect() as db:
+                fields = ["name", "parts", "description", "created", "updated"]
                 query = f"""
-                    SELECT id
+                    SELECT {', '.join(fields)}
                     FROM widgets
                     WHERE id = ? AND organization_id = ? AND deleted IS NULL
                     LIMIT 1
@@ -221,9 +231,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 params = (widget_id, self.organization_id)
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
-                        current = row[0]
-            if current is None:
+                        current = dict(zip(fields, row))
+            if current is None or prefix != "widget":
                 errors['id'] = 'id must be an existing widget id'
+            else:
+                current['id'] = widget_code
         
         if errors:
             self.set_status(400)
@@ -240,6 +252,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             cursor = await db.execute(query, params)
             await db.commit()
             changes = db.total_changes
+        current['deleted'] = str(now)
         
         if not changes:
             self.set_status(409)
@@ -267,15 +280,18 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         
         errors = {}
         
-        widget_id = post.get("id")
-        if not widget_id:
+        widget_code = post.get("id")
+        if not widget_code:
             errors['id'] = 'id is required'
         else:
-            # This query specifically looks for deleted widgets to restore.
+            # This could just go ahead with the delete and check for changes,
+            # but querying first is just a little easier in many systems.
+            prefix, widget_id = await self.dbmanager.decode_id(widget_code)
             current = None
             async with self.dbmanager.connect() as db:
+                fields = ["name", "parts", "description", "created"]
                 query = f"""
-                    SELECT id
+                    SELECT {', '.join(fields)}
                     FROM widgets
                     WHERE id = ? AND organization_id = ?
                     AND deleted IS NOT NULL
@@ -284,9 +300,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 params = (widget_id, self.organization_id)
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
-                        current = row[0]
-            if current is None:
+                        current = dict(zip(fields, row))
+            if current is None or prefix != "widget":
                 errors['id'] = 'id must be a deleted widget id'
+            else:
+                current['id'] = widget_code
         
         if errors:
             self.set_status(400)
@@ -303,6 +321,8 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             cursor = await db.execute(query, params)
             await db.commit()
             changes = db.total_changes
+        current['deleted'] = None
+        current['updated'] = str(now)
         
         if not changes:
             self.set_status(409)
