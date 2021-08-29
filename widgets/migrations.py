@@ -5,9 +5,9 @@ def migration(f):
     return f
 
 @migration
-async def create_organizations_table(db):
+async def create_accounts_table(db):
     await db.execute(r"""
-        CREATE TABLE organizations (
+        CREATE TABLE accounts (
             id INTEGER NOT NULL PRIMARY KEY,
             name TEXT NOT NULL,
             created TEXT NOT NULL,
@@ -20,7 +20,7 @@ async def create_tokens_table(db):
     await db.execute(r"""
         CREATE TABLE tokens (
             id INTEGER NOT NULL PRIMARY KEY,
-            organization_id INTEGER NOT NULL,
+            account_id INTEGER NOT NULL,
             token TEXT NOT NULL UNIQUE,
             created TEXT NOT NULL,
             updated TEXT NOT NULL
@@ -32,7 +32,7 @@ async def create_widgets_table(db):
     await db.execute(r"""
         CREATE TABLE widgets (
             id INTEGER NOT NULL PRIMARY KEY,
-            organization_id INTEGER NOT NULL,
+            account_id INTEGER NOT NULL,
             name VARCHAR(64) NOT NULL,
             parts INTEGER NOT NULL,
             created TEXT NOT NULL,

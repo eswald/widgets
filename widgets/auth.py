@@ -9,60 +9,58 @@ class AuthorizedRequestHandler(tornado.web.RequestHandler):
         self.dbmanager = dbmanager
     
     async def prepare(self):
-        self.organization_id = None
-        self.organization_code = None
+        self.account_id = None
+        self.account_code = None
         auth = self.request.headers.get('Authorization')
         if auth and auth.startswith('Bearer '):
             token = auth.split(" ", 1)[1]
             async with self.dbmanager.connect() as db:
                 query = """
-                    SELECT organization_id
+                    SELECT account_id
                     FROM tokens
                     WHERE token = ?
                     LIMIT 1
                 """
                 async with db.execute(query, (token,)) as cursor:
                     async for row in cursor:
-                        self.organization_id = row[0]
-            if self.organization_id is not None:
-                self.organization_code = await self.dbmanager.encode_id(
-                    "organization",
-                    self.organization_id,
-                )
+                        self.account_id = row[0]
+            if self.account_id is not None:
+                encoder = self.dbmanager.encode_id
+                self.account_code = await encoder("account", self.account_id)
     
     def write_error(self, status_code, **kwargs):
         self.write({'error': 'Internal Error'})
 
 
-class OrganizationHandler(AuthorizedRequestHandler):
+class AccountHandler(AuthorizedRequestHandler):
     async def get(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
         
         fields = ["name", "created", "updated"]
         
-        organizations = []
+        accounts = []
         async with self.dbmanager.connect() as db:
             query = f"""
                 SELECT {', '.join(fields)}
-                FROM organizations
+                FROM accounts
                 WHERE id = ?
             """
-            async with db.execute(query, (self.organization_id,)) as cursor:
+            async with db.execute(query, (self.account_id,)) as cursor:
                 async for row in cursor:
-                    organizations.append(dict(zip(fields, row)))
+                    accounts.append(dict(zip(fields, row)))
         
-        for organization in organizations:
-            organization['id'] = self.organization_code
+        for account in accounts:
+            account['id'] = self.account_code
         
         self.write({
-            'organization': organizations,
+            'account': accounts,
         })
 
     async def post(self):
-        # Create a new organization, with a new random auth token.
+        # Create a new account, with a new random auth token.
         try:
             post = json.loads(self.request.body)
             assert isinstance(post, dict)
@@ -80,27 +78,24 @@ class OrganizationHandler(AuthorizedRequestHandler):
         async with self.dbmanager.connect() as db:
             now = self.dbmanager.now()
             query = """
-                INSERT INTO organizations (name, created, updated)
+                INSERT INTO accounts (name, created, updated)
                 VALUES (?, ?, ?)
             """
             cursor = await db.execute(query, (name, now, now))
-            organization_id = cursor.lastrowid
+            account_id = cursor.lastrowid
             
             token = str(uuid.uuid4())
             query = """
-                INSERT INTO tokens (organization_id, token, created, updated)
+                INSERT INTO tokens (account_id, token, created, updated)
                 VALUES (?, ?, ?, ?)
             """
-            params = (organization_id, token, now, now)
+            params = (account_id, token, now, now)
             cursor = await db.execute(query, params)
             
             await db.commit()
         
-        organization_code = await self.dbmanager.encode_id(
-            "organization",
-            organization_id,
-        )
+        account_code = await self.dbmanager.encode_id("account", account_id)
         self.write({
-            'organization': organization_code,
+            'account': account_code,
             'token': token,
         })

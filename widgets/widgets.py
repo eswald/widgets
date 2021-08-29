@@ -5,7 +5,7 @@ import widgets.auth
 
 class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
     async def get(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
@@ -17,9 +17,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             query = f"""
                 SELECT {', '.join(fields)}
                 FROM widgets
-                WHERE organization_id = ? AND deleted IS NULL
+                WHERE account_id = ? AND deleted IS NULL
             """
-            async with db.execute(query, (self.organization_id,)) as cursor:
+            async with db.execute(query, (self.account_id,)) as cursor:
                 async for row in cursor:
                     widgets.append(dict(zip(fields, row)))
         
@@ -28,12 +28,12 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             widget["id"] = await encoder("widget", widget["id"])
         
         self.write({
-            'organization': self.organization_code,
+            'account': self.account_code,
             'widgets': widgets,
         })
     
     async def post(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
@@ -85,17 +85,17 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         }
         
         widget_id = await self.dbmanager.insert_row("widgets",
-            organization_id=self.organization_id, **fields)
+            account_id=self.account_id, **fields)
         
         fields["id"] = await self.dbmanager.encode_id("widget", widget_id)
         
         self.write({
-            'organization': self.organization_code,
+            'account': self.account_code,
             'widget': fields,
         })
     
     async def put(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
@@ -122,10 +122,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 query = f"""
                     SELECT {', '.join(fields)}
                     FROM widgets
-                    WHERE id = ? AND organization_id = ? AND deleted IS NULL
+                    WHERE id = ? AND account_id = ? AND deleted IS NULL
                     LIMIT 1
                 """
-                params = (widget_id, self.organization_id)
+                params = (widget_id, self.account_id)
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
                         current = dict(zip(fields, row))
@@ -183,21 +183,21 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             settings = ', '.join(f'{key} = ?' for key in keys)
             query = f"""
                 UPDATE widgets SET {settings}
-                WHERE id = ? AND organization_id = ?
+                WHERE id = ? AND account_id = ?
             """
-            params = values + (widget_id, self.organization_id)
+            params = values + (widget_id, self.account_id)
             async with self.dbmanager.connect() as db:
                 cursor = await db.execute(query, params)
                 await db.commit()
             current.update(changes)
         
         self.write({
-            'organization': self.organization_code,
+            'account': self.account_code,
             'widget': current,
         })
     
     async def delete(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
@@ -225,10 +225,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 query = f"""
                     SELECT {', '.join(fields)}
                     FROM widgets
-                    WHERE id = ? AND organization_id = ? AND deleted IS NULL
+                    WHERE id = ? AND account_id = ? AND deleted IS NULL
                     LIMIT 1
                 """
-                params = (widget_id, self.organization_id)
+                params = (widget_id, self.account_id)
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
                         current = dict(zip(fields, row))
@@ -245,9 +245,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         now = self.dbmanager.now()
         query = f"""
             UPDATE widgets SET deleted = ?
-            WHERE id = ? AND organization_id = ? AND deleted IS NULL
+            WHERE id = ? AND account_id = ? AND deleted IS NULL
         """
-        params = (now, widget_id, self.organization_id)
+        params = (now, widget_id, self.account_id)
         async with self.dbmanager.connect() as db:
             cursor = await db.execute(query, params)
             await db.commit()
@@ -260,12 +260,12 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             return
         
         self.write({
-            'organization': self.organization_code,
+            'account': self.account_code,
             'widget': current,
         })
     
     async def patch(self):
-        if not self.organization_id:
+        if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
@@ -293,11 +293,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 query = f"""
                     SELECT {', '.join(fields)}
                     FROM widgets
-                    WHERE id = ? AND organization_id = ?
+                    WHERE id = ? AND account_id = ?
                     AND deleted IS NOT NULL
                     LIMIT 1
                 """
-                params = (widget_id, self.organization_id)
+                params = (widget_id, self.account_id)
                 async with db.execute(query, params) as cursor:
                     async for row in cursor:
                         current = dict(zip(fields, row))
@@ -314,9 +314,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         now = self.dbmanager.now()
         query = f"""
             UPDATE widgets SET deleted = NULL, updated = ?
-            WHERE id = ? AND organization_id = ? AND deleted IS NOT NULL
+            WHERE id = ? AND account_id = ? AND deleted IS NOT NULL
         """
-        params = (now, widget_id, self.organization_id)
+        params = (now, widget_id, self.account_id)
         async with self.dbmanager.connect() as db:
             cursor = await db.execute(query, params)
             await db.commit()
@@ -330,6 +330,6 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             return
         
         self.write({
-            'organization': self.organization_code,
+            'account': self.account_code,
             'widget': current,
         })

@@ -21,7 +21,7 @@ def run(port: int, database: str):
     loop.add_callback(widgets.migrations.run_migrations, dbmanager)
     params = {'dbmanager': dbmanager}
     app = tornado.web.Application([
-        (r"/", widgets.auth.OrganizationHandler, params),
+        (r"/", widgets.auth.AccountHandler, params),
         (r"/widgets/", widgets.widgets.WidgetHandler, params),
     ])
     app.listen(8888)
