@@ -88,3 +88,102 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             'organization': self.organization_id,
             'widget': fields,
         })
+    
+    async def put(self):
+        if not self.organization_id:
+            self.set_status(401)
+            self.write({'error': 'Not Authorized'})
+            return
+        
+        try:
+            post = json.loads(self.request.body)
+            assert isinstance(post, dict)
+        except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        
+        errors = {}
+        changes = {}
+        
+        widget_id = post.get("id")
+        if not widget_id:
+            errors['widget_id'] = 'widget_id is required'
+        else:
+            current = None
+            async with self.dbmanager.connect() as db:
+                fields = ["id", "name", "parts", "description", "created"]
+                query = f"""
+                    SELECT {', '.join(fields)}
+                    FROM widgets
+                    WHERE id = ? AND organization_id = ?
+                    LIMIT 1
+                """
+                params = (widget_id, self.organization_id)
+                async with db.execute(query, params) as cursor:
+                    async for row in cursor:
+                        current = dict(zip(fields, row))
+            if current is None:
+                errors['widget_id'] = 'widget_id must be an existing widget id'
+        
+        if 'name' in post:
+            name = post["name"]
+            if current and name == current['name']:
+                pass
+            elif not name:
+                errors['name'] = 'name is required'
+            elif not isinstance(name, str):
+                errors['name'] = 'name must be a string'
+            elif 64 < len(name):
+                errors['name'] = 'name must not be longer than 64 characters'
+            else:
+                changes['name'] = name
+        
+        if 'parts' in post:
+            parts = post["parts"]
+            if current and parts == current['parts']:
+                pass
+            elif not parts:
+                errors['parts'] = 'parts is required'
+            elif not isinstance(parts, int):
+                errors['parts'] = 'parts must be an integer'
+            elif parts < 0:
+                errors['parts'] = 'parts must not be negative'
+            elif (1 << 31) < parts:
+                errors['parts'] = 'parts must not be excessively large'
+            else:
+                changes['parts'] = parts
+        
+        if 'description' in post:
+            description = post["description"]
+            if current and description == current['description']:
+                pass
+            elif description is not None and not isinstance(description, str):
+                errors['description'] = 'description must be a string'
+            else:
+                changes['description'] = description
+        
+        if errors:
+            self.set_status(400)
+            self.write({'error': errors})
+            return
+        
+        if changes:
+            now = self.dbmanager.now()
+            changes['updated'] = str(now)
+            keys, values = zip(*changes.items())
+            settings = ', '.join(f'{key} = ?' for key in keys)
+            query = f"""
+                UPDATE widgets SET {settings}
+                WHERE id = ? AND organization_id = ?
+            """
+            params = values + (widget_id, self.organization_id)
+            async with self.dbmanager.connect() as db:
+                cursor = await db.execute(query, params)
+                await db.commit()
+            current.update(changes)
+        
+        self.write({
+            'organization': self.organization_id,
+            'widget': current,
+        })
