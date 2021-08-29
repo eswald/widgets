@@ -40,8 +40,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
 
         try:
             post = json.loads(self.request.body)
-            assert isinstance(post, dict)
         except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        if not isinstance(post, dict):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
@@ -103,8 +106,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
 
         try:
             post = json.loads(self.request.body)
-            assert isinstance(post, dict)
         except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        if not isinstance(post, dict):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
@@ -205,8 +211,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
 
         try:
             post = json.loads(self.request.body)
-            assert isinstance(post, dict)
         except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        if not isinstance(post, dict):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
@@ -273,8 +282,11 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
 
         try:
             post = json.loads(self.request.body)
-            assert isinstance(post, dict)
         except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        if not isinstance(post, dict):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
