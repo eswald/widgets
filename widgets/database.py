@@ -31,6 +31,22 @@ class ConnectionManager:
 
         return item_id
 
+    async def update(self, table, changes, **selected):
+        fields, values = zip(*changes.items())
+        keys, params = zip(*selected.items())
+        settings = ', '.join(f'{field} = ?' for field in fields)
+        conditions = ' AND '.join(f'{key} = ?' for key in keys)
+        query = f"""
+            UPDATE {table} SET {settings}
+            WHERE {conditions}
+        """
+        async with self.connect() as db:
+            cursor = await db.execute(query, values + params)
+            await db.commit()
+            changed = db.total_changes
+
+        return changed
+
     async def get_alphabet(self, prefix, store=True):
         if prefix in self.alphabets:
             return self.alphabets[prefix]

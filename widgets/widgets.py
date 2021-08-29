@@ -185,17 +185,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
 
         if changes:
             now = self.dbmanager.now()
+            selected = {'id': widget_id, 'account_id': self.account_id}
             changes['updated'] = str(now)
-            keys, values = zip(*changes.items())
-            settings = ', '.join(f'{key} = ?' for key in keys)
-            query = f"""
-                UPDATE widgets SET {settings}
-                WHERE id = ? AND account_id = ?
-            """
-            params = values + (widget_id, self.account_id)
-            async with self.dbmanager.connect() as db:
-                cursor = await db.execute(query, params)
-                await db.commit()
+            await self.dbmanager.update('widgets', changes, **selected)
             current.update(changes)
 
         self.write({
@@ -252,19 +244,12 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.write({'error': errors})
             return
 
-        now = self.dbmanager.now()
-        query = """
-            UPDATE widgets SET deleted = ?
-            WHERE id = ? AND account_id = ? AND deleted IS NULL
-        """
-        params = (now, widget_id, self.account_id)
-        async with self.dbmanager.connect() as db:
-            cursor = await db.execute(query, params)
-            await db.commit()
-            changes = db.total_changes
-        current['deleted'] = str(now)
+        changes = {'deleted': str(self.dbmanager.now())}
+        selected = {'id': widget_id, 'account_id': self.account_id}
+        changed = await self.dbmanager.update('widgets', changes, **selected)
+        current.update(changes)
 
-        if not changes:
+        if not changed:
             self.set_status(409)
             self.write({'error': 'No changes made'})
             return
@@ -324,18 +309,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.write({'error': errors})
             return
 
-        now = self.dbmanager.now()
-        query = """
-            UPDATE widgets SET deleted = NULL, updated = ?
-            WHERE id = ? AND account_id = ? AND deleted IS NOT NULL
-        """
-        params = (now, widget_id, self.account_id)
-        async with self.dbmanager.connect() as db:
-            cursor = await db.execute(query, params)
-            await db.commit()
-            changes = db.total_changes
-        current['deleted'] = None
-        current['updated'] = str(now)
+        changes = {'deleted': None, 'updated': str(self.dbmanager.now())}
+        selected = {'id': widget_id, 'account_id': self.account_id}
+        changed = await self.dbmanager.update('widgets', changes, **selected)
+        current.update(changes)
 
         if not changes:
             self.set_status(409)
