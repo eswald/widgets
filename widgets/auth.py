@@ -7,7 +7,7 @@ import tornado.web
 class AuthorizedRequestHandler(tornado.web.RequestHandler):
     def initialize(self, dbmanager):
         self.dbmanager = dbmanager
-    
+
     async def prepare(self):
         self.account_id = None
         self.account_code = None
@@ -27,7 +27,7 @@ class AuthorizedRequestHandler(tornado.web.RequestHandler):
             if self.account_id is not None:
                 encoder = self.dbmanager.encode_id
                 self.account_code = await encoder("account", self.account_id)
-    
+
     def write_error(self, status_code, **kwargs):
         self.write({'error': 'Internal Error'})
 
@@ -38,9 +38,9 @@ class AccountHandler(AuthorizedRequestHandler):
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         fields = ["name", "created", "updated"]
-        
+
         accounts = []
         async with self.dbmanager.connect() as db:
             query = f"""
@@ -51,10 +51,10 @@ class AccountHandler(AuthorizedRequestHandler):
             async with db.execute(query, (self.account_id,)) as cursor:
                 async for row in cursor:
                     accounts.append(dict(zip(fields, row)))
-        
+
         for account in accounts:
             account['id'] = self.account_code
-        
+
         self.write({
             'account': accounts,
         })
@@ -68,13 +68,13 @@ class AccountHandler(AuthorizedRequestHandler):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
-        
+
         name = post.get("name")
         if not name:
             self.set_status(400)
             self.write({'error': 'name is required'})
             return
-        
+
         async with self.dbmanager.connect() as db:
             now = self.dbmanager.now()
             query = """
@@ -83,7 +83,7 @@ class AccountHandler(AuthorizedRequestHandler):
             """
             cursor = await db.execute(query, (name, now, now))
             account_id = cursor.lastrowid
-            
+
             token = str(uuid.uuid4())
             query = """
                 INSERT INTO tokens (account_id, token, created, updated)
@@ -91,9 +91,9 @@ class AccountHandler(AuthorizedRequestHandler):
             """
             params = (account_id, token, now, now)
             cursor = await db.execute(query, params)
-            
+
             await db.commit()
-        
+
         account_code = await self.dbmanager.encode_id("account", account_id)
         self.write({
             'account': account_code,

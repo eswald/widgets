@@ -1,8 +1,10 @@
 migrations = []
 
+
 def migration(f):
     migrations.append(f)
     return f
+
 
 @migration
 async def create_accounts_table(db):
@@ -15,6 +17,7 @@ async def create_accounts_table(db):
         )
     """)
 
+
 @migration
 async def create_tokens_table(db):
     await db.execute(r"""
@@ -26,6 +29,7 @@ async def create_tokens_table(db):
             updated TEXT NOT NULL
         )
     """)
+
 
 @migration
 async def create_widgets_table(db):
@@ -41,11 +45,13 @@ async def create_widgets_table(db):
         )
     """)
 
+
 @migration
 async def soft_delete_widgets(db):
     await db.execute(r"""
         ALTER TABLE widgets ADD COLUMN deleted TEXT DEFAULT NULL
     """)
+
 
 @migration
 async def create_alphabets_table(db):
@@ -57,6 +63,7 @@ async def create_alphabets_table(db):
         )
     """)
 
+
 async def run_migrations(dbmanager):
     async with dbmanager.connect() as db:
         await db.execute(r"""
@@ -65,11 +72,11 @@ async def run_migrations(dbmanager):
                 migrated TEXT NOT NULL
             )
         """)
-        
+
         async with db.execute("SELECT name FROM migrations") as cursor:
             migrated = set(row[0] for row in await cursor.fetchall())
         print(f"Checking migrations: {len(migrated)} / {len(migrations)} ...")
-        
+
         updated = []
         for migration in migrations:
             name = migration.__name__
@@ -81,6 +88,6 @@ async def run_migrations(dbmanager):
                     INSERT INTO migrations (name, migrated) VALUES (?, ?)
                 """, (name, str(dbmanager.now())))
                 await db.commit()
-        
+
         print("Migrations complete.")
         return updated

@@ -9,9 +9,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         fields = ["id", "name", "parts", "created", "updated", "description"]
-        
+
         widgets = []
         async with self.dbmanager.connect() as db:
             query = f"""
@@ -22,22 +22,22 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             async with db.execute(query, (self.account_id,)) as cursor:
                 async for row in cursor:
                     widgets.append(dict(zip(fields, row)))
-        
+
         encoder = self.dbmanager.encode_id
         for widget in widgets:
             widget["id"] = await encoder("widget", widget["id"])
-        
+
         self.write({
             'account': self.account_code,
             'widgets': widgets,
         })
-    
+
     async def post(self):
         if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         try:
             post = json.loads(self.request.body)
             assert isinstance(post, dict)
@@ -45,9 +45,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
-        
+
         errors = {}
-        
+
         name = post.get("name")
         if not name:
             errors['name'] = 'name is required'
@@ -55,7 +55,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             errors['name'] = 'name must be a string'
         elif 64 < len(name):
             errors['name'] = 'name must not be longer than 64 characters'
-        
+
         parts = post.get("parts")
         if not parts:
             errors['parts'] = 'parts is required'
@@ -65,16 +65,16 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             errors['parts'] = 'parts must not be negative'
         elif (1 << 31) < parts:
             errors['parts'] = 'parts must not be excessively large'
-        
+
         description = post.get("description")
         if description is not None and not isinstance(description, str):
             errors['description'] = 'description must be a string'
-        
+
         if errors:
             self.set_status(400)
             self.write({'error': errors})
             return
-        
+
         now = self.dbmanager.now()
         fields = {
             "name": name,
@@ -83,23 +83,24 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             "created": str(now),
             "updated": str(now),
         }
-        
+
         widget_id = await self.dbmanager.insert_row("widgets",
-            account_id=self.account_id, **fields)
-        
+                                                    account_id=self.account_id,
+                                                    **fields)
+
         fields["id"] = await self.dbmanager.encode_id("widget", widget_id)
-        
+
         self.write({
             'account': self.account_code,
             'widget': fields,
         })
-    
+
     async def put(self):
         if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         try:
             post = json.loads(self.request.body)
             assert isinstance(post, dict)
@@ -107,10 +108,10 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
-        
+
         errors = {}
         changes = {}
-        
+
         widget_code = post.get("id")
         if not widget_code:
             errors['id'] = 'id is required'
@@ -133,7 +134,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['id'] = 'id must be an existing widget id'
             else:
                 current['id'] = widget_code
-        
+
         if 'name' in post:
             name = post["name"]
             if current and name == current['name']:
@@ -146,7 +147,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['name'] = 'name must not be longer than 64 characters'
             else:
                 changes['name'] = name
-        
+
         if 'parts' in post:
             parts = post["parts"]
             if current and parts == current['parts']:
@@ -161,7 +162,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['parts'] = 'parts must not be excessively large'
             else:
                 changes['parts'] = parts
-        
+
         if 'description' in post:
             description = post["description"]
             if current and description == current['description']:
@@ -170,12 +171,12 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['description'] = 'description must be a string'
             else:
                 changes['description'] = description
-        
+
         if errors:
             self.set_status(400)
             self.write({'error': errors})
             return
-        
+
         if changes:
             now = self.dbmanager.now()
             changes['updated'] = str(now)
@@ -190,18 +191,18 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 cursor = await db.execute(query, params)
                 await db.commit()
             current.update(changes)
-        
+
         self.write({
             'account': self.account_code,
             'widget': current,
         })
-    
+
     async def delete(self):
         if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         try:
             post = json.loads(self.request.body)
             assert isinstance(post, dict)
@@ -209,9 +210,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
-        
+
         errors = {}
-        
+
         widget_code = post.get("id")
         if not widget_code:
             errors['id'] = 'id is required'
@@ -236,14 +237,14 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['id'] = 'id must be an existing widget id'
             else:
                 current['id'] = widget_code
-        
+
         if errors:
             self.set_status(400)
             self.write({'error': errors})
             return
-        
+
         now = self.dbmanager.now()
-        query = f"""
+        query = """
             UPDATE widgets SET deleted = ?
             WHERE id = ? AND account_id = ? AND deleted IS NULL
         """
@@ -253,23 +254,23 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             await db.commit()
             changes = db.total_changes
         current['deleted'] = str(now)
-        
+
         if not changes:
             self.set_status(409)
             self.write({'error': 'No changes made'})
             return
-        
+
         self.write({
             'account': self.account_code,
             'widget': current,
         })
-    
+
     async def patch(self):
         if not self.account_id:
             self.set_status(401)
             self.write({'error': 'Not Authorized'})
             return
-        
+
         try:
             post = json.loads(self.request.body)
             assert isinstance(post, dict)
@@ -277,9 +278,9 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             self.set_status(400)
             self.write({'error': 'Invalid json request'})
             return
-        
+
         errors = {}
-        
+
         widget_code = post.get("id")
         if not widget_code:
             errors['id'] = 'id is required'
@@ -305,14 +306,14 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 errors['id'] = 'id must be a deleted widget id'
             else:
                 current['id'] = widget_code
-        
+
         if errors:
             self.set_status(400)
             self.write({'error': errors})
             return
-        
+
         now = self.dbmanager.now()
-        query = f"""
+        query = """
             UPDATE widgets SET deleted = NULL, updated = ?
             WHERE id = ? AND account_id = ? AND deleted IS NOT NULL
         """
@@ -323,12 +324,12 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             changes = db.total_changes
         current['deleted'] = None
         current['updated'] = str(now)
-        
+
         if not changes:
             self.set_status(409)
             self.write({'error': 'No changes made'})
             return
-        
+
         self.write({
             'account': self.account_code,
             'widget': current,
