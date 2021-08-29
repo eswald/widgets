@@ -41,6 +41,12 @@ async def create_widgets_table(db):
         )
     """)
 
+@migration
+async def soft_delete_widgets(db):
+    await db.execute(r"""
+        ALTER TABLE widgets ADD COLUMN deleted TEXT DEFAULT NULL
+    """)
+
 async def run_migrations(dbmanager):
     async with dbmanager.connect() as db:
         await db.execute(r"""

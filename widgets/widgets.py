@@ -17,7 +17,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
             query = f"""
                 SELECT {', '.join(fields)}
                 FROM widgets
-                WHERE organization_id = ?
+                WHERE organization_id = ? AND deleted IS NULL
             """
             async with db.execute(query, (self.organization_id,)) as cursor:
                 async for row in cursor:
@@ -108,7 +108,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         
         widget_id = post.get("id")
         if not widget_id:
-            errors['widget_id'] = 'widget_id is required'
+            errors['id'] = 'id is required'
         else:
             current = None
             async with self.dbmanager.connect() as db:
@@ -116,7 +116,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 query = f"""
                     SELECT {', '.join(fields)}
                     FROM widgets
-                    WHERE id = ? AND organization_id = ?
+                    WHERE id = ? AND organization_id = ? AND deleted IS NULL
                     LIMIT 1
                 """
                 params = (widget_id, self.organization_id)
@@ -124,7 +124,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                     async for row in cursor:
                         current = dict(zip(fields, row))
             if current is None:
-                errors['widget_id'] = 'widget_id must be an existing widget id'
+                errors['id'] = 'id must be an existing widget id'
         
         if 'name' in post:
             name = post["name"]
@@ -206,7 +206,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
         
         widget_id = post.get("id")
         if not widget_id:
-            errors['widget_id'] = 'widget_id is required'
+            errors['id'] = 'id is required'
         else:
             # This could just go ahead with the delete and check for changes,
             # but querying first is just a little easier in many systems.
@@ -215,7 +215,7 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                 query = f"""
                     SELECT id
                     FROM widgets
-                    WHERE id = ? AND organization_id = ?
+                    WHERE id = ? AND organization_id = ? AND deleted IS NULL
                     LIMIT 1
                 """
                 params = (widget_id, self.organization_id)
@@ -223,18 +223,19 @@ class WidgetHandler(widgets.auth.AuthorizedRequestHandler):
                     async for row in cursor:
                         current = row[0]
             if current is None:
-                errors['widget_id'] = 'widget_id must be an existing widget id'
+                errors['id'] = 'id must be an existing widget id'
         
         if errors:
             self.set_status(400)
             self.write({'error': errors})
             return
         
+        now = self.dbmanager.now()
         query = f"""
-            DELETE FROM widgets
-            WHERE id = ? AND organization_id = ?
+            UPDATE widgets SET deleted = ?
+            WHERE id = ? AND organization_id = ? AND deleted IS NULL
         """
-        params = (widget_id, self.organization_id)
+        params = (now, widget_id, self.organization_id)
         async with self.dbmanager.connect() as db:
             cursor = await db.execute(query, params)
             await db.commit()
