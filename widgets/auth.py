@@ -54,7 +54,15 @@ class OrganizationHandler(AuthorizedRequestHandler):
 
     async def post(self):
         # Create a new organization, with a new random auth token.
-        name = json.loads(self.request.body).get("name")
+        try:
+            post = json.loads(self.request.body)
+            assert isinstance(post, dict)
+        except Exception:
+            self.set_status(400)
+            self.write({'error': 'Invalid json request'})
+            return
+        
+        name = post.get("name")
         if not name:
             self.set_status(400)
             self.write({'error': 'name is required'})
